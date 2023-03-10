@@ -8,30 +8,152 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 #include <map>
 
 using namespace std;
 
-ifstream readFile;
-ofstream writeFile;
+ifstream g_readFile;
+ofstream g_writeFile("test.mar");
+
+string g_readLine{};
+vector<string> g_readWords{};
+struct WordInfo
+{
+	string prefix, postfix;
+	bool negative{};
+};
+WordInfo g_readWordInfo;
+
+std::map<std::string, char> g_map;
+int g_idx{ int('A') }; //make sure this cannot go over a certain nr AND make sure it can be nocap when negative
+
+
+string g_writeLine{};
+
 
 bool OpenFileToRead(string filename)
 {
-	readFile.open(filename);
-	if (!readFile)
+	//OPEN FILE
+	g_readFile.open(filename);
+
+	//check for success
+	bool success{ false };
+	if (g_readFile) { success = true; }
+	else { cerr << "Error opening file" << endl; }
+
+	//return
+	return success;
+}
+
+//todo BELOW : when we run out of bounds with the lines, it crashes, ALSO, when v is exceeded, it doesn't know. use the vertex count?
+bool GoToNextLineStartingWith(string toFind)
+{
+	bool success{ false };
+
+	while (!success && getline(g_readFile, g_readLine))
 	{
-		cerr << "Error opening file" << endl;
-		return false;
+		//Check if start of line == toFind
+		if (g_readLine.compare(0, toFind.length(), toFind) == 0) { success = true; }
 	}
 
-	return true;
+	return success;
 }
-bool SkipToLineStartingWith(string toFind)
+void StoreEachWordSeparatelyInVector()
 {
-	bool found{};
+	istringstream iss(g_readLine);
+	string word;
 
-	string currentLine{};
+	// EXTRACT "WORDS" FROM THE ISS USING DEFAULT DELIMITER ' '
+	while (iss >> word) {
+		g_readWords.push_back(word);
+	}
+}
+WordInfo SplitWordsInPrefixPostfix(string word, char delimiter)
+{
+	WordInfo local{};
 
+	size_t pos = word.find(delimiter);
+
+	if (pos != string::npos)
+	{
+		local.prefix = word.substr(0, pos);
+		local.postfix = word.substr(pos);
+	}
+
+	return local;
+}
+void RemoveZeroesAtEndOfPrefix()
+{
+	while (g_readWordInfo.prefix.back() == '0') {
+		g_readWordInfo.prefix.pop_back();
+	}
+}
+void RemoveFromWord(char toRemove)
+{
+	size_t pos = g_readWordInfo.prefix.find(toRemove);
+	if (pos != string::npos)
+	{
+		g_readWordInfo.prefix.erase(pos, 1);
+	}
+}
+void HandleNegativeSign()
+{
+	if (stof(g_readWordInfo.prefix) < 0)
+	{
+		g_readWordInfo.prefix = g_readWordInfo.prefix.substr(1); //remove first character (the minus)
+		g_readWordInfo.negative = true;
+	}
+}
+void HandlePostfix()
+{
+	int IDX{};
+	string newPostfix;
+
+	// Check whether this postfix is already a key in the map
+	try
+	{
+		newPostfix = g_map.at(g_readWordInfo.postfix);
+	}
+
+	catch (const out_of_range& e)
+	{
+		g_map.insert(make_pair(g_readWordInfo.postfix, char(g_idx))); // add to list
+		++g_idx;
+		newPostfix = g_map.at(g_readWordInfo.postfix);
+	}
+
+	g_readWordInfo.postfix = newPostfix;
+}
+
+void CleanupVertices()
+{
+	GoToNextLineStartingWith("v");
+
+	StoreEachWordSeparatelyInVector();
+
+	g_readWordInfo = SplitWordsInPrefixPostfix(g_readWords[1], 'e');
+
+
+	//PREFIX
+	RemoveZeroesAtEndOfPrefix();
+	RemoveFromWord('.');
+
+	//BOTH
+	HandleNegativeSign();
+
+	//POSTFIX
+	HandlePostfix();
+
+	//createline
+	g_writeLine = g_writeLine + g_readWordInfo.prefix + g_readWordInfo.postfix;
+
+	//write to file
+	if (g_writeFile.is_open()) {g_writeFile << g_writeLine;}
+	g_writeFile.close();
+
+	cout << "successfully converted vertices in file ...";
+	std::cin.get();
 }
 
 int main() {
@@ -40,251 +162,7 @@ int main() {
 	string filename = "debugfile.obj";
 	if (!OpenFileToRead(filename)) { return 1; }
 
-	//////////////////////////////////////////////////////////////////////////////////////////////// CLEAN
-	/*FIND INDEX STARTING WITH 'v' */
-	// Loop through each line of the file and find the first line that starts with "v "
-	string line;
-	string toFind{ "v" };
-	bool found{ false };
-	int index{ 0 };
-	while (getline(readFile, line) && !found) {
-		if (line.compare(0, toFind.length(), toFind) == 0) {
-			found = true;
-			cout << "Found line starting with \"" + toFind + "\" at index " << index << endl;
-		}
-		index++;
-	}
-	if (!found)
-	{
-		cerr << "No line starting with \"" + toFind + "\" found." << endl;
-	}
+	CleanupVertices();
 
-	/*WRITE LINE*/
-	std::ofstream newFile("test.mar"); // create an output file stream
-
-
-	/*SPLIT LINE INTO 3*/
-	string vertex[4]{}; //TURN THIS INTO 3? ONCE V HAS BEEN REMOVED
-
-	istringstream iss(line); // create an istringstream object from the line
-	string word;
-	int idx{ 0 };
-	while (iss >> word) { // extract words from the istringstream object using the delimiter " "
-		vertex[idx] = word; // add the word to the vector
-		++idx;
-	}
-	//print just to check : 
-	for (int i{}; i < 4; ++i)
-	{
-		std::cout << vertex[i] << "---";
-	}
-
-	/*FIND CHARACTER 'e', CHECK IF LAST FEW CHARACTERS ARE IN LIST OF KNOWN SUFFIXES, IF SO, REPLACE IT WITH THAT LETTER*/
-	// IF NOT, CREATE NEW LETTER IN LIST AND REPLACE SUFFIX W THAT LETTER
-	// BEFORE THE e, REMOVE THE 0s IF ANY
-			/*MAP FOR SUFFIXES*/
-	std::map<std::string,char> THEMAP;
-	int age = int('A');
-	int distCapNoCap = int('a') - int('A');
-
-
-	std::string prefix;
-	std::string suffix;
-	for (int i{ 1 }; i < 4; ++i)
-	{
-		std::string str = vertex[i]; //loop over 1 , 2, and 3! DELETE 0!
-
-		size_t pos = str.find('e'); // Find the position of the first occurrence of 'e'
-		if (pos != std::string::npos) { // Check if 'e' is found
-			prefix = str.substr(0, pos);
-			suffix = str.substr(pos); // Extract the suffix starting from 'e'
-		}
-		std::cout << '\n' << "Suffix: " << suffix << std::endl; // Print the suffix
-
-		/*CHECK FOR ZEROES*/
-		cout << prefix << " about to be checked for zeroes and periods ... \n"; //add negativity later
-		while (prefix.back() == '0') {
-			prefix.pop_back(); // remove the last character
-		}
-		/*remove .*/
-		size_t pos2 = prefix.find('.');
-		// Use the std::string::erase method to remove the character
-		if (pos2 != std::string::npos) {
-			prefix.erase(pos2, 1);
-		}
-		bool isPrefixNegative{};
-		///*CHECK IF PREFIX NEGATIVE*/
-		//if (prefix[0] == '-')
-		//{
-		//	prefix = prefix.substr(1); //remove first character
-		//	isPrefixNegative= true;
-		//}
-		cout << prefix << " <- result. \n";
-
-		
-		try { 
-			std::cout << "SUFFIX FOUND :" << prefix << THEMAP.at(suffix) << '\n'; 
-		}// This will throw a std::out_of_range exception
-		catch (const std::out_of_range& e) {
-			std::cerr << "Key not found: " << e.what() << '\n';
-
-			THEMAP.insert(std::make_pair(suffix, char(age))); // add key-value pair using insert and make_pair
-			std::cout << "the suffix for " << suffix << " has been added to the list : " << prefix << THEMAP[suffix] << '\n';
-			++age; //MAKE SURE IF AGE GOES OVER OR UNDER CERTAIN AMT, IT GETS ADDED ON TOP 
-		}
-
-		
-		if (newFile.is_open()) {
-			newFile << prefix << THEMAP[suffix];
-		}
-	}
-	
-
-	newFile.close();
-	std::cin.get();
-}
-
-
-//file.seekg(0, ios::beg); //GOES TO FIRST CHARACTER OF FILE
-
-void CompressVertices()
-{
-	bool isTheNextLineAVertex{ false }; //SET TO TRUE AFTER CHECK IS DONE
-
-
-
-	//Float3f toRead;
-	//std::ifstream input;
-	//input.open("test.bin", std::ios::binary);
-
-	//if (input.is_open()) // ask class : how tf do I check if the file even opened? 
-	//{
-	//	input.read((char*)&toRead, sizeof(toRead));
-	//	assert(toRead.x == toWrite.x);
-	//	assert(toRead.y == toWrite.y);
-	//	assert(toRead.z == toWrite.z);
-	//	input.close();
-	//}
-
-	string converted{};
-
-	do
-	{
-
-
-		//check if next line is a vertex, update isNextLineAVertex
-	} while (isTheNextLineAVertex);
-
-	std::cout << converted;
-
-
-	//	//WRITE
-//
-//	std::string pod = std::is_pod<Float3f> ::value == 1 ? "yes" : "no";
-//	std::cout << "Is the Float3 struct a pod : " << pod << std::endl;
-//
-//	Float3f toWrite;
-//	toWrite.x = 6.4f;
-//	toWrite.y = 9.8f;
-//	toWrite.z = 9.5f;
-//
-//	std::ofstream temp;
-//	temp.open("test.bin", std::ios::binary);
-//	if (temp.is_open())
-//	{
-//		temp.write((const char*)&toWrite, sizeof(toWrite));
-//		temp.close();
-//	}
-
-
-
-
-
-
-
-
-
-// split up the 3 into a vector for the line
-// first one, find an e?
-// what comes after an e?
-// check if it's in THE LIST
-// no? add new letter to the list
-// rename it to that letter
-// yes? rename it to that letter
-// move onto next nr
-// repeat
-
-
-
-
-/* Write a binary writer */
-//#include <type_traits>
-//#include <string>
-//#include <iostream>
-//#include <fstream>
-//#include <cassert>
-//
-//struct Float3f
-//{
-//	float x, y, z;
-//};
-
-//
-//int main()
-//{
-//
-//	//WRITE
-//
-//	std::string pod = std::is_pod<Float3f> ::value == 1 ? "yes" : "no";
-//	std::cout << "Is the Float3 struct a pod : " << pod << std::endl;
-//
-//	Float3f toWrite;
-//	toWrite.x = 6.4f;
-//	toWrite.y = 9.8f;
-//	toWrite.z = 9.5f;
-//
-//	std::ofstream temp;
-//	temp.open("test.bin", std::ios::binary);
-//	if (temp.is_open())
-//	{
-//		temp.write((const char*)&toWrite, sizeof(toWrite));
-//		temp.close();
-//	}
-//
-//
-//	//READ
-//
-//	Float3f toRead;
-//	std::ifstream input;
-//	input.open("test.bin", std::ios::binary);
-//
-//	if (input.is_open()) // ask class : how tf do I check if the file even opened? 
-//	{
-//		input.read((char*)&toRead, sizeof(toRead));
-//		assert(toRead.x == toWrite.x);
-//		assert(toRead.y == toWrite.y);
-//		assert(toRead.z == toWrite.z);
-//		input.close();
-//	}
-//
-//
-//	std::cout
-//		<< "original float3 : [" << toWrite.x << ", " << toWrite.y
-//		<< ", " << toWrite.z << "]" << std::endl;
-//	std::cout
-//		<< "read float3 : [" << toRead.x << ", " << toRead.y
-//		<< ", " << toRead.z << "]" << std::endl;
-//
-//
-//
-//
-//
-//	std::cin.get();
-//}
-//
-////size of file
-////std::filesystem::path myFilePath{ "test.bin" };
-////std::filesystem.filesize...
-//
-//// do NOT write a pointer to your string to a file
+	return 0;
 }
