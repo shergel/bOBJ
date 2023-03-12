@@ -1,6 +1,95 @@
-#include "bOBJ.h"
+using namespace std;
+
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <map>
 
 using namespace std;
+
+//INDICATORS
+const string g_vertexIndicator{ "v" };
+const string g_faceIndicator{ "f" };
+const string g_vertexNormalIndicator{ "vn" };
+const string g_commentIndicator{ "#" };
+const string g_mapIndicator{ "map" };
+
+struct Coordinate
+{
+	string _string = {};
+	string _string_prefix = {};
+	string _string_postfix = {};
+	bool isNegative = {};
+};
+struct Vertex
+{
+	Coordinate x{}, y{}, z{};
+};
+
+void OBJ_to_BOBJ();
+void BOBJ_to_OBJ();
+
+
+bool OpenFileToRead(const string filename, ifstream& file);
+string GetConvertedOBJtoBOBJString(ifstream& objFile, const int maxLines);
+string GetConvertedVertexLine(const string& line);
+string GetConvertedFaceLine(const string& line);
+string GetConvertedVertexNormalLine(const string& line);
+string GetConvertedCommentLine(const string& line);
+void LineStringToVertex(const string& line, Vertex& vertex);
+void VertexStringToCoordinate(Coordinate& coordinate, const string& fullString);
+string CalculateCoordinatePrefix(const string& coordinateString);
+string CalculateCoordinatePostfix(const string& coordinateString);
+bool CalculateCoordinateNegativity(const string& coordinateString);
+void ConvertVertex(Vertex& vertex);
+void ConvertCoordinate(Coordinate& coordinate);
+void ConvertCoordinatePrefix(Coordinate& coordinate);
+void ConvertCoordinatePostfix(Coordinate& coordinate);
+string GetWithoutCharAtEnd(const string& input, char toDelete);
+string GetWithoutFirstInstanceOf(char toRemove, const string& input);
+string GetPostfixAsLetter(const string& input);
+void AddNewPostfixToMap(const string& newPostfixEntry);
+string GetLastCharCapitalized(const string& input, bool capitalized);
+void WriteMap(ofstream& bObjFile);
+
+
+
+const string g_noPostfixIndicator{ "NONE" };
+map<string, string> g_prefixes_OBJtoBOBJ//map that stores all common vertex postfixes
+{
+{ g_noPostfixIndicator, "A"}
+};
+map<string, string> g_prefixes_BOBJtoOBJ{};
+
+
+////////////////////////////////////////////
+//todo make these parameters
+string g_filenameOBJ{ "debugfile.obj" };
+string g_filenameBOBJ{ "test.bOBJ" };
+string g_filenameOBJ2{ "test.obj" };
+///////////////////////////////////////////
+
+enum Linetype
+{
+	OTHER = 0,
+	MAP,
+	VERTEX,
+	VERTEXNORMAL,
+	FACE,
+	COMMENT,
+};
+
+Linetype GetLineType(const string& line);
+string GetBOBJtoOBJLine(const string& line, Linetype thistype, Linetype conversiontype);
+void HandleMapLine(const string& line, Linetype thistype, Linetype conversiontype);
+
+string GetDecompressedVertex();
+string GetDecompressedVertexNormal();
+string GetDecompressedFace();
+string GetDecompressedComment();
+
 
 int main() {
 	OBJ_to_BOBJ();
