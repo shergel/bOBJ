@@ -1,126 +1,117 @@
-using namespace std;
-
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include <string>
 #include <vector>
+#include <algorithm>
 #include <map>
+#include "bOBJ.h"
+
+#ifdef _WIN32
+#define RED_TEXT        "\033[91m"
+#define GREEN_TEXT      "\033[92m"
+#define BLUE_TEXT       "\033[94m"
+#define RESET_TEXT      "\033[0m"
+#else
+#define RED_TEXT        "\x1B[91m"
+#define GREEN_TEXT      "\x1B[92m"
+#define BLUE_TEXT       "\x1B[94m"
+#define RESET_TEXT      "\x1B[0m"
+#endif
 
 using namespace std;
 
-//INDICATORS
-const string g_vertexIndicator{ "v" };
-const string g_faceIndicator{ "f" };
-const string g_vertexNormalIndicator{ "vn" };
-const string g_commentIndicator{ "#" };
-const string g_mapIndicator{ "map" };
-
-struct Coordinate
-{
-	string _string = {};
-	string _string_prefix = {};
-	string _string_postfix = {};
-	bool isNegative = {};
-};
-struct Vertex
-{
-	Coordinate x{}, y{}, z{};
-};
-
-void OBJ_to_BOBJ();
-void BOBJ_to_OBJ();
-
-
-bool OpenFileToRead(const string filename, ifstream& file);
-string GetConvertedOBJtoBOBJString(ifstream& objFile, const int maxLines);
-string GetConvertedVertexLine(const string& line);
-string GetConvertedFaceLine(const string& line);
-string GetConvertedVertexNormalLine(const string& line);
-string GetConvertedCommentLine(const string& line);
-void LineStringToVertex(const string& line, Vertex& vertex);
-void VertexStringToCoordinate(Coordinate& coordinate, const string& fullString);
-string CalculateCoordinatePrefix(const string& coordinateString);
-string CalculateCoordinatePostfix(const string& coordinateString);
-bool CalculateCoordinateNegativity(const string& coordinateString);
-void ConvertVertex(Vertex& vertex);
-void ConvertCoordinate(Coordinate& coordinate);
-void ConvertCoordinatePrefix(Coordinate& coordinate);
-void ConvertCoordinatePostfix(Coordinate& coordinate);
-string GetWithoutCharAtEnd(const string& input, char toDelete);
-string GetWithoutFirstInstanceOf(char toRemove, const string& input);
-string GetPostfixAsLetter(const string& input);
-void AddNewPostfixToMap(const string& newPostfixEntry);
-string GetLastCharCapitalized(const string& input, bool capitalized);
-void WriteMap(ofstream& bObjFile);
-
-
-const string g_noPostfixIndicator{ "NONE" };
-map<string, string> g_postfixes_OBJtoBOBJ//map that stores all common vertex postfixes
-{
-{ g_noPostfixIndicator, "A"}
-};
-map<string, string> g_postfixes_BOBJtoOBJ{};
-
-
-////////////////////////////////////////////
-//todo make these parameters
-string g_filenameOBJ{ "low poly stanford bunny.obj" };
-string g_filenameBOBJ{ "test.bOBJ" };
-string g_filenameOBJ2{ "test.obj" };
-///////////////////////////////////////////
-
-enum Linetype
-{
-	OTHER = 0,
-	MAP,
-	VERTEX,
-	VERTEXNORMAL,
-	FACE,
-	COMMENT,
-};
-
-Linetype GetLineType(const string& line);
-string GetBOBJtoOBJLine(const string& line, Linetype thistype, Linetype conversiontype);
-void HandleMapLine(const string& line, Linetype thistype, Linetype conversiontype);
-
-string GetDecompressedVertex(const string& line);
-string GetDecompressedVertexNormal(const string& line);
-string GetDecompressedFace(const string& line);
-string GetDecompressedComment(const string& line);
-string GetBOBJVertexCoordinateToOBJVertexCoordinate(const string& coordinate);
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// header/cpp split
-
 int main() {
-	OBJ_to_BOBJ();
-	BOBJ_to_OBJ();
+
+	cout << BLUE_TEXT << "[ - - - - - - - OBJ <-> MSOBJ conversion tool by Mariam Shergelashvili 2DAE08 - - - - - - - ] start\n" << RESET_TEXT;
+
+	ConversionType conversiontype = ConversionType::NONE;
+
+	/*ACCESS FILE TO CONVERT*/
+	bool success{};
+	string filepath{};
+	ifstream file_toRead;
+	while (!success)
+	{
+		cout << "\nPlease enter filepath to an .obj or .msobj : ";
+		cin >> filepath;
+
+		success = AccessFilePath(file_toRead, filepath, conversiontype);
+	}
+
+	///*CREATE OUTPUT FILENAME*/
+	size_t pos = filepath.find('.');
+	string outputFilepath = filepath.substr(0, pos);
+
+	/*CONVERT*/
+	switch (conversiontype)
+	{
+	case ConversionType::OBJtoMSOBJ:
+		cout << "Converting .obj to .msobj ...\n";
+		outputFilepath += ".msobj";
+		OBJ_to_MSOBJ(file_toRead, filepath, outputFilepath);
+		break;
+	case ConversionType::MSOBJtoOBJ:
+		cout << "Converting .msobj to .obj ...\n";
+		outputFilepath += ".obj";
+		MSOBJ_to_OBJ(file_toRead, filepath, outputFilepath);
+		break;
+	}
+
+	cout
+		<< GREEN_TEXT << "\n * * * * * [ SUCCESS ] * * * * * \n" << RESET_TEXT
+		<< "-> File successfully converted & saved at : " << GREEN_TEXT << outputFilepath << '\n' << RESET_TEXT
+		<< "press any key to exit.\n"
+		<< BLUE_TEXT << "[ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ] end\n" << RESET_TEXT;
+
+	cin.get();
+	cin.get();
+
 	return 0;
 }
 
-void OBJ_to_BOBJ()
+bool AccessFilePath(ifstream& file, const string& filepath, ConversionType& conversiontype)
 {
-	/*START*/
-	cout << "-> Start conversion to bOBJ...\n";
-
-	/*OPEN FILE TO READ*/
 	bool success{};
-	ifstream file_toRead;
-	const string filename = g_filenameOBJ; //todo make parameter
-	success = OpenFileToRead(filename, file_toRead);
-	if (!success) { return; }
 
+	// Check if file opens
+	file.close();
+	bool fileFound = OpenFileToRead(filepath, file);
+
+	// Check if correct file type
+	string extension = filepath.substr(filepath.find_last_of(".") + 1);
+	transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return std::toupper(c); });
+	bool correctType{};
+	if (extension == "OBJ")
+	{
+		correctType = true;
+		conversiontype = ConversionType::OBJtoMSOBJ;
+	}
+	else if (extension == "MSOBJ")
+	{
+		correctType = true;
+		conversiontype = ConversionType::MSOBJtoOBJ;
+	}
+	if (fileFound && !correctType) { cerr << RED_TEXT  "Error : Incorrect file type\n" << RESET_TEXT; }
+
+
+	// Check if all good
+	if (fileFound && correctType) { success = true; }
+
+	return success;
+}
+void OBJ_to_MSOBJ(ifstream& input, const string& inputFilepath, const string& outputPath)
+{
 	/*GET FILE LENGTH*/
-	int maxLines = static_cast<int>(count(istreambuf_iterator<char>(file_toRead), istreambuf_iterator<char>(), '\n'));
-	file_toRead.seekg(0, std::ios::beg); //return to start of file
+	int maxLines = static_cast<int>(count(istreambuf_iterator<char>(input), istreambuf_iterator<char>(), '\n'));
+	input.seekg(0, std::ios::beg); //return to start of file
 
 	/*OPEN FILE TO WRITE*/
-	ofstream file_toWrite(g_filenameBOBJ, ios::binary);
+	ofstream file_toWrite(outputPath, ios::binary);
 	file_toWrite.close();
-	ofstream file_toWrite_append(g_filenameBOBJ, ios::binary | ios::app);
+	ofstream file_toWrite_append(outputPath, ios::binary | ios::app);
 
 	/*CONVERT LINES*/
-	string conversion = GetConvertedOBJtoBOBJString(file_toRead, maxLines);
+	string conversion = GetConvertedOBJtoMSOBJString(input, maxLines);
 
 	/*WRITE MAP LEGENDA*/
 	WriteMap(file_toWrite_append);
@@ -130,25 +121,13 @@ void OBJ_to_BOBJ()
 
 	/*CLOSE FILE TO WRITE*/
 	file_toWrite_append.close();
-	file_toRead.close();
-
-	/*END*/
-	cout << "-> File successfully converted & saved as bOBJ\n";
+	input.close();
 }
-void BOBJ_to_OBJ()
+void MSOBJ_to_OBJ(ifstream& input, const string& inputFilepath, const string& outputPath)
 {
-	cout << "\n->-> Start conversion to OBJ...\n";
-
-	/*OPEN FILE TO READ*/
-	bool success{};
-	ifstream file_toRead;
-	const string filename = g_filenameBOBJ; //todo make parameter
-	success = OpenFileToRead(filename, file_toRead);
-	if (!success) { return; }
-
 	/*GET FILE LENGTH*/
-	int maxLines = static_cast<int>(count(istreambuf_iterator<char>(file_toRead), istreambuf_iterator<char>(), '\n'));
-	file_toRead.seekg(0, std::ios::beg); //return to start of file
+	int maxLines = static_cast<int>(count(istreambuf_iterator<char>(input), istreambuf_iterator<char>(), '\n'));
+	input.seekg(0, std::ios::beg); //return to start of file
 
 	// enum checking which type of conversion we need, DATA is its default state
 	Linetype thistype = Linetype::OTHER;
@@ -161,7 +140,7 @@ void BOBJ_to_OBJ()
 	string line;
 	string conversion{};
 
-	while (getline(file_toRead, line) && !done)	//Iterate over each line
+	while (getline(input, line) && !done)	//Iterate over each line
 	{
 		++operations;
 
@@ -169,7 +148,7 @@ void BOBJ_to_OBJ()
 		if (lasttype == Linetype::OTHER && thistype != Linetype::OTHER) { conversiontype = thistype; } // new section detected
 
 		if (conversiontype == Linetype::MAP) { HandleMapLine(line, thistype, conversiontype); }
-		else { conversion += GetBOBJtoOBJLine(line, thistype, conversiontype); }
+		else { conversion += GetMSOBJtoOBJLine(line, thistype, conversiontype); }
 
 		lasttype = thistype;
 		if (operations >= maxLines) { done = true; }
@@ -177,12 +156,9 @@ void BOBJ_to_OBJ()
 
 	/*OPEN FILE TO WRITE*/
 	ofstream file_toWrite;
-	file_toWrite.open(g_filenameOBJ2);
+	file_toWrite.open(outputPath);
 	file_toWrite.write(conversion.c_str(), conversion.length());
 	file_toWrite.close();
-
-	cout << "->-> File successfully converted to OBJ.\n";
-	cin.get();
 }
 bool OpenFileToRead(const string filename, ifstream& file)
 {
@@ -190,13 +166,12 @@ bool OpenFileToRead(const string filename, ifstream& file)
 
 	bool success{ false };
 	if (file) { success = true; }
-	else { cerr << "Error opening file" << endl; }
+	else { cerr << RED_TEXT  "Error : File not found" << RESET_TEXT << endl; }
 
 	return success;
 }
 
-#pragma region BOBJ to OBJ
-// BOBJ TO OBJ ///////////////////////////////////////////////////////////////////////////////////////////////
+#pragma region MSOBJ to OBJ
 Linetype GetLineType(const string& line)
 {
 	Linetype linetype{ Linetype::OTHER };
@@ -209,7 +184,7 @@ Linetype GetLineType(const string& line)
 
 	return linetype;
 }
-string GetBOBJtoOBJLine(const string& line, Linetype thistype, Linetype conversiontype)
+string GetMSOBJtoOBJLine(const string& line, Linetype thistype, Linetype conversiontype)
 {
 	string result{};
 
@@ -255,7 +230,7 @@ void HandleMapLine(const string& line, Linetype thistype, Linetype conversiontyp
 	if (key == "A") { value = ""; } // the key is A, it indicates there was no postfix to begin with
 
 	/*STORE IN MAP*/
-	g_postfixes_BOBJtoOBJ.insert(std::make_pair(key, value));
+	g_postfixes_MSOBJtoOBJ.insert(std::make_pair(key, value));
 }
 string GetDecompressedVertex(const string& line)
 {
@@ -286,7 +261,7 @@ string GetDecompressedVertex(const string& line)
 	/*CONVERT EACH COORDINATE TO OBJ STYLE*/
 	for (string& word : words)
 	{
-		word = GetBOBJVertexCoordinateToOBJVertexCoordinate(word);
+		word = GetMSOBJVertexCoordinateToOBJVertexCoordinate(word);
 	}
 
 	result = g_vertexIndicator + " " + words[0] + " " + words[1] + " " + words[2] + '\n';
@@ -338,14 +313,14 @@ string GetDecompressedFace(const string& line)
 }
 string GetDecompressedComment(const string& line)
 {
-	string result{line};
+	string result{ line };
 
 	string conversion = GetWithoutFirstInstanceOf('*', result);
 	result = g_commentIndicator + " " + conversion + '\n';
 
 	return result;
 }
-string GetBOBJVertexCoordinateToOBJVertexCoordinate(const string& coordinate)
+string GetMSOBJVertexCoordinateToOBJVertexCoordinate(const string& coordinate)
 {
 	string result{ coordinate };
 
@@ -385,17 +360,14 @@ string GetBOBJVertexCoordinateToOBJVertexCoordinate(const string& coordinate)
 	}
 
 	//convert postfix
-	postfix = g_postfixes_BOBJtoOBJ[postfix];
+	postfix = g_postfixes_MSOBJtoOBJ[postfix];
 
 	result = prefix + postfix;
 	return result;
 }
 #pragma endregion
-
-
-#pragma region OBJ to BOBJ
-// OBJ TO BOBJ ///////////////////////////////////////////////////////////////////////////////////////////////
-string GetConvertedOBJtoBOBJString(ifstream& objFile, const int maxLines)
+#pragma region OBJ to MSOBJ
+string GetConvertedOBJtoMSOBJString(ifstream& objFile, const int maxLines)
 {
 	string result;
 	bool done{};
@@ -481,7 +453,7 @@ void VertexStringToCoordinate(Coordinate& coordinate, const string& fullString)
 
 	coordinate._string_prefix = CalculateCoordinatePrefix(coordinate._string); // _string_prefix
 	coordinate._string_postfix = CalculateCoordinatePostfix(coordinate._string); // _string_postfix
-	coordinate.isNegative = CalculateCoordinateNegativity(coordinate._string); // _isNegative todo: make this  a  function
+	coordinate.isNegative = CalculateCoordinateNegativity(coordinate._string); // _isNegative 
 }
 string CalculateCoordinatePrefix(const string& coordinateString)
 {
@@ -584,11 +556,11 @@ string GetPostfixAsLetter(const string& input)
 {
 	string result{};
 
-	try { result = g_postfixes_OBJtoBOBJ.at(input); }
+	try { result = g_postfixes_OBJtoMSOBJ.at(input); }
 	catch (const out_of_range&)
 	{
 		AddNewPostfixToMap(input);
-		result = g_postfixes_OBJtoBOBJ.at(input);
+		result = g_postfixes_OBJtoMSOBJ.at(input);
 	}
 
 	return result;
@@ -601,7 +573,7 @@ void AddNewPostfixToMap(const string& newPostfixEntry)
 	char startChar = 'A';
 	char endChar = 'Z';
 
-	int mapSize{ static_cast<int>(g_postfixes_OBJtoBOBJ.size()) };
+	int mapSize{ static_cast<int>(g_postfixes_OBJtoMSOBJ.size()) };
 	const int alphabetLength{ endChar - startChar };
 
 	const int alphabetLoops = mapSize / alphabetLength;
@@ -620,7 +592,7 @@ void AddNewPostfixToMap(const string& newPostfixEntry)
 	}
 
 	/*NEW ENTRY IN MAP*/
-	g_postfixes_OBJtoBOBJ.insert(make_pair(newPostfixEntry, result));
+	g_postfixes_OBJtoMSOBJ.insert(make_pair(newPostfixEntry, result));
 }
 string GetLastCharCapitalized(const string& input, bool capitalized)
 {
@@ -698,20 +670,20 @@ string GetConvertedVertexNormalLine(const string& line)
 
 	return result;
 }
-void WriteMap(ofstream& bObjFile)
+void WriteMap(ofstream& msObjFile)
 {
 	string line{};
 
 	line += g_mapIndicator + '\n';
 
-	for (auto it = g_postfixes_OBJtoBOBJ.begin(); it != g_postfixes_OBJtoBOBJ.end(); ++it) {
+	for (auto it = g_postfixes_OBJtoMSOBJ.begin(); it != g_postfixes_OBJtoMSOBJ.end(); ++it) {
 
 		line += "*" + it->second + " " + it->first + '\n';
 	}
 
 	//line += g_mapIndicator + +"end" + '\n';
 
-	bObjFile.write(line.c_str(), line.length());
+	msObjFile.write(line.c_str(), line.length());
 }
 #pragma endregion
 
