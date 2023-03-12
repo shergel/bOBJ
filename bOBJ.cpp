@@ -3,14 +3,22 @@
 using namespace std;
 
 int main() {
+	OBJ_to_BOBJ();
+	BOBJ_to_OBJ();
+	return 0;
+}
 
-	bool success{};
+void OBJ_to_BOBJ()
+{
+	/*START*/
+	cout << "-> Start conversion to bOBJ...\n";
 
 	/*OPEN FILE TO READ*/
+	bool success{};
 	ifstream file_toRead;
 	const string filename = "debugfile.obj"; //todo make parameter
 	success = OpenFileToRead(filename, file_toRead);
-	if (!success) { return 1; }
+	if (!success) { return; }
 
 	/*GET FILE LENGTH*/
 	int maxLines = count(istreambuf_iterator<char>(file_toRead), istreambuf_iterator<char>(), '\n');
@@ -20,21 +28,19 @@ int main() {
 	ofstream file_toWrite("test.bOBJ", ios::binary);
 	file_toWrite.close();
 	ofstream file_toWrite_append("test.bOBJ", ios::binary | ios::app);
-	
 
-	/*CONVERT FILE*/
-	ConvertAndWriteFile(file_toRead, maxLines, file_toWrite_append);
+	/*CONVERT AND WRITE LINES*/
+	ConvertAndWriteToBOBJ(file_toRead, maxLines, file_toWrite_append);
 
-	/*WRITE*/
-	
-	//write indicator that we're looking at verts
-	//dont forget to write the map as well!
+	/*WRITE MAP LEGENDA*/
+	WriteMap(file_toWrite_append);
 
 	/*CLOSE FILE TO WRITE*/
 	file_toWrite_append.close();
+
 	/*END*/
-	cout << "Exited Main";
-	return 0;
+	cout << "-> File successfully converted & saved as bOBJ\n";
+	cin.get();
 }
 
 bool OpenFileToRead(const string filename, ifstream& file)
@@ -47,39 +53,81 @@ bool OpenFileToRead(const string filename, ifstream& file)
 
 	return success;
 }
-void ConvertAndWriteFile(ifstream& objFile, const int maxLines, ofstream& bObjFile)
+
+// BOBJ TO OBJ ///////////////////////////////////////////////////////////////////////////////////////////////
+void BOBJ_to_OBJ()
+{
+	// get map
+}
+
+
+
+// OBJ TO BOBJ ///////////////////////////////////////////////////////////////////////////////////////////////
+void ConvertAndWriteToBOBJ(ifstream& objFile, const int maxLines, ofstream& bObjFile)
 {
 	bool done{};
 	int operations{};
 
-	const string vertexIndicator{ "v " };
-	const string faceIndicator{ "f " };
-	const string vertexNormalIndicator{ "vn " };
+	const string vertexIndicator{ "v" };
+	const string faceIndicator{ "f" };
+	const string vertexNormalIndicator{ "vn" };
 	const string commentIndicator{ "#" };
+	const string emptyIndicator{ " " };
+
+	bool commentsFound{ false }, verticesFound{ false }, vertexNormalsFound{ false }, facesFound{ false };
 
 	string line{};
-	string writeLine{"placeholder\n"};
+	string introductionline{}; // indicates which type of data this is (vertex/face/...)
+	string writeLine{ "placeholder\n" };
 	while (getline(objFile, line) && !done)	//Iterate over each line
 	{
 		++operations;
 
-		//get converted line
-		if (line.compare(0, vertexIndicator.length(), vertexIndicator) == 0) { writeLine = GetConvertedVertexLine(line); }
-		else if (line.compare(0, faceIndicator.length(), faceIndicator) == 0) { HandleFace(); }
-		else if (line.compare(0, vertexNormalIndicator.length(), vertexNormalIndicator) == 0) { HandleVertexNormal(); }
-		else if (line.compare(0, commentIndicator.length(), commentIndicator) == 0) { HandleComment(); }
-		else { cout << "handle empty line\n\n"; }
+		//get converted line we must check vn/vp before v, since their indicators might overlap
+
+		if (line.compare(0, vertexNormalIndicator.length(), vertexNormalIndicator) == 0) // in case of vertex normal
+		{
+			if (!vertexNormalsFound) { introductionline = vertexNormalIndicator + '\n'; vertexNormalsFound = true; }
+			writeLine = introductionline + GetConvertedVertexNormalLine(line);
+		}
+
+		else if (line.compare(0, vertexIndicator.length(), vertexIndicator) == 0) // in case of vertex
+		{
+			if (!verticesFound) { introductionline = vertexIndicator + '\n'; verticesFound = true; }
+			writeLine = introductionline + GetConvertedVertexLine(line);
+		}
+
+		else if (line.compare(0, faceIndicator.length(), faceIndicator) == 0) // in case of face
+		{
+			if (!facesFound) { introductionline = faceIndicator + '\n'; facesFound = true; }
+			writeLine = introductionline + GetConvertedFaceLine(line);
+		}
+
+		else if (line.compare(0, commentIndicator.length(), commentIndicator) == 0) // in case of comment
+		{
+			if (!commentsFound) { introductionline = commentIndicator + '\n'; commentsFound = true; }
+			writeLine = introductionline + GetConvertedCommentLine(line);
+		}
+		else if (line.compare(0, emptyIndicator.length(), emptyIndicator) == 0) // in case of comment
+		{
+			writeLine = "";
+		}
+		else //copy anything else without conversion
+		{
+			writeLine = line;
+		}
 
 		//write to file
 		bObjFile.write(writeLine.c_str(), writeLine.length());
 		writeLine = "placeholder\n";
+		introductionline = "";
 
 		//check if need to continue
 		if (operations >= maxLines) { done = true; }
 	}
 }
 
-/*VERTEX*/   ////////////////////////////////////////////////////////////////////////////
+/*VERTEX*/   ////////////////////////////////////////////////////////////
 string GetConvertedVertexLine(const string& line)
 {
 	string result;
@@ -125,6 +173,7 @@ string CalculateCoordinatePrefix(const string& coordinateString)
 	char delimiter{ 'e' };
 	size_t pos = coordinateString.find(delimiter);
 	if (pos != string::npos) { prefix = coordinateString.substr(0, pos); } //get prefix
+	else { prefix = coordinateString; }
 
 	return prefix;
 }
@@ -135,6 +184,7 @@ string CalculateCoordinatePostfix(const string& coordinateString)
 	char delimiter{ 'e' };
 	size_t pos = coordinateString.find(delimiter);
 	if (pos != string::npos) { postfix = coordinateString.substr(pos); } //get postfix
+	else { postfix = g_noPostfixIndicator; }
 
 	return postfix;
 }
@@ -170,18 +220,18 @@ void ConvertCoordinatePrefix(Coordinate& coordinate)
 	string convertedPrefix{ coordinate._string_prefix };
 
 	//CALCULATE CONVERSION IN BUFFER
-	convertedPrefix = GetWithoutZeroesAtEnd(convertedPrefix);
+	convertedPrefix = GetWithoutCharAtEnd(convertedPrefix, '0');
 	convertedPrefix = GetWithoutFirstInstanceOf('.', convertedPrefix);
 	if (coordinate.isNegative) { convertedPrefix = GetWithoutFirstInstanceOf('-', convertedPrefix); }
 
 	//STORE CONVERTED BUFFER OVER ORIGINAL PREFIX
 	coordinate._string_prefix = convertedPrefix;
 }
-string GetWithoutZeroesAtEnd(const string& input)
+string GetWithoutCharAtEnd(const string& input, char toDelete)
 {
 	string result = input;
 
-	while (result.back() == '0') {
+	while (result.back() == toDelete) {
 		result.pop_back();
 	}
 
@@ -217,11 +267,11 @@ string GetPostfixAsLetter(const string& input)
 {
 	string result{};
 
-	try { result = g_commonPostfixes.at(input); }
+	try { result = g_prefixes_OBJtoBOBJ.at(input); }
 	catch (const out_of_range& e)
 	{
 		AddNewPostfixToMap(input);
-		result = g_commonPostfixes.at(input);
+		result = g_prefixes_OBJtoBOBJ.at(input);
 	}
 
 	return result;
@@ -234,7 +284,7 @@ void AddNewPostfixToMap(const string& newPostfixEntry)
 	char startChar = 'A';
 	char endChar = 'Z';
 
-	int mapSize{ static_cast<int>(g_commonPostfixes.size()) };
+	int mapSize{ static_cast<int>(g_prefixes_OBJtoBOBJ.size()) };
 	const int alphabetLength{ endChar - startChar };
 
 	const int alphabetLoops = mapSize / alphabetLength;
@@ -253,7 +303,7 @@ void AddNewPostfixToMap(const string& newPostfixEntry)
 	}
 
 	/*NEW ENTRY IN MAP*/
-	g_commonPostfixes.insert(make_pair(newPostfixEntry, result));
+	g_prefixes_OBJtoBOBJ.insert(make_pair(newPostfixEntry, result));
 }
 string GetLastCharCapitalized(const string& input, bool capitalized)
 {
@@ -275,18 +325,73 @@ string GetLastCharCapitalized(const string& input, bool capitalized)
 	return result;
 }
 
+/*FACE*/   ////////////////////////////////////////////////////////////
+string GetConvertedFaceLine(const string& line)
+{
+	string result{ line };
 
+	/*CLEAN*/
+	result = result.substr(2) + "\n";
 
-/*FACE*/   ////////////////////////////////////////////////////////////////////////////
-void HandleFace()
-{
-	cout << "handle face line\n\n";
+	return result;
 }
-void HandleComment()
+/*COMMENT*/   ////////////////////////////////////////////////////////////
+string GetConvertedCommentLine(const string& line)
 {
-	cout << "handle comment line\n\n";
+	string result{ line };
+
+	/*CLEAN*/
+	result = result.substr(2) + "\n";
+
+	return result;
 }
-void HandleVertexNormal()
+/*VERTEX NORMAL*/   ////////////////////////////////////////////////////////////
+string GetConvertedVertexNormalLine(const string& line)
 {
-	cout << "handle vertexnormal line\n\n";
+	string result{ line };
+
+	/*REMOVE ACRONYM*/
+	result = result.substr(2);
+
+	/*SPLIT UP INTO ELEMENTS*/
+	istringstream iss(result);
+	vector<string> vertexNormal;
+	string coordinate;
+	while (iss >> coordinate) { vertexNormal.push_back(coordinate); }
+
+	//CLEAN EACH OF 0s AT END
+	// IF POSITIVE, REMOVE '.'
+	//ADD TO END RESULT
+	result = {};
+	for (string coordinate : vertexNormal)
+	{
+		//remove 0s at end
+		coordinate = GetWithoutCharAtEnd(coordinate, '0');
+
+		//remove '-' for negative numbers, remove '.' for positive numbers
+		char toRemove{};
+		if (coordinate[0] == '-') { toRemove = '-'; }
+		else { toRemove = '.'; }
+		coordinate = GetWithoutFirstInstanceOf(toRemove, coordinate);
+
+		result += coordinate + " ";
+	}
+
+	result += '\n';
+
+	return result;
+}
+void WriteMap(ofstream& bObjFile)
+{
+	string line{};
+
+	string mapIndicator{ "map" };
+	line += mapIndicator + '\n';
+
+	for (auto it = g_prefixes_OBJtoBOBJ.begin(); it != g_prefixes_OBJtoBOBJ.end(); ++it) {
+		
+		line += it->second + " " + it->first + '\n';
+	}
+
+	bObjFile.write(line.c_str(), line.length());
 }
