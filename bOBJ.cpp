@@ -21,7 +21,7 @@ void OBJ_to_BOBJ()
 	if (!success) { return; }
 
 	/*GET FILE LENGTH*/
-	int maxLines = count(istreambuf_iterator<char>(file_toRead), istreambuf_iterator<char>(), '\n');
+	int maxLines = static_cast<int>(count(istreambuf_iterator<char>(file_toRead), istreambuf_iterator<char>(), '\n'));
 	file_toRead.seekg(0, std::ios::beg); //return to start of file
 
 	/*OPEN FILE TO WRITE*/
@@ -57,7 +57,7 @@ void BOBJ_to_OBJ()
 	if (!success) { return; }
 
 	/*GET FILE LENGTH*/
-	int maxLines = count(istreambuf_iterator<char>(file_toRead), istreambuf_iterator<char>(), '\n');
+	int maxLines = static_cast<int>(count(istreambuf_iterator<char>(file_toRead), istreambuf_iterator<char>(), '\n'));
 	file_toRead.seekg(0, std::ios::beg); //return to start of file
 
 	// enum checking which type of conversion we need, DATA is its default state
@@ -348,7 +348,7 @@ string GetPostfixAsLetter(const string& input)
 	string result{};
 
 	try { result = g_prefixes_OBJtoBOBJ.at(input); }
-	catch (const out_of_range& e)
+	catch (const out_of_range&)
 	{
 		AddNewPostfixToMap(input);
 		result = g_prefixes_OBJtoBOBJ.at(input);
