@@ -16,7 +16,7 @@ void OBJ_to_BOBJ()
 	/*OPEN FILE TO READ*/
 	bool success{};
 	ifstream file_toRead;
-	const string filename = "debugfile.obj"; //todo make parameter
+	const string filename = g_filenameOBJ; //todo make parameter
 	success = OpenFileToRead(filename, file_toRead);
 	if (!success) { return; }
 
@@ -25,24 +25,71 @@ void OBJ_to_BOBJ()
 	file_toRead.seekg(0, std::ios::beg); //return to start of file
 
 	/*OPEN FILE TO WRITE*/
-	ofstream file_toWrite("test.bOBJ", ios::binary);
+	ofstream file_toWrite(g_filenameBOBJ, ios::binary);
 	file_toWrite.close();
-	ofstream file_toWrite_append("test.bOBJ", ios::binary | ios::app);
+	ofstream file_toWrite_append(g_filenameBOBJ, ios::binary | ios::app);
 
-	/*CONVERT AND WRITE LINES*/
-	ConvertAndWriteToBOBJ(file_toRead, maxLines, file_toWrite_append);
+	/*CONVERT LINES*/
+	string conversion = GetConvertedOBJtoBOBJString(file_toRead, maxLines);
 
 	/*WRITE MAP LEGENDA*/
 	WriteMap(file_toWrite_append);
 
+	/*WRITE CONVERSION TO FILE*/
+	file_toWrite_append.write(conversion.c_str(), conversion.length());
+
 	/*CLOSE FILE TO WRITE*/
 	file_toWrite_append.close();
+	file_toRead.close();
 
 	/*END*/
 	cout << "-> File successfully converted & saved as bOBJ\n";
+}
+void BOBJ_to_OBJ()
+{
+	cout << "\n->-> Start conversion to OBJ...\n";
+
+	/*OPEN FILE TO READ*/
+	bool success{};
+	ifstream file_toRead;
+	const string filename = g_filenameBOBJ; //todo make parameter
+	success = OpenFileToRead(filename, file_toRead);
+	if (!success) { return; }
+
+	/*GET FILE LENGTH*/
+	int maxLines = count(istreambuf_iterator<char>(file_toRead), istreambuf_iterator<char>(), '\n');
+	file_toRead.seekg(0, std::ios::beg); //return to start of file
+
+	// enum checking which type of conversion we need, DATA is its default state
+	Linetype thistype = Linetype::OTHER;
+	Linetype lasttype = Linetype::OTHER;
+	Linetype conversiontype = Linetype::OTHER;
+
+	/*ITERATE OVER FILE*/
+	bool done{};
+	int operations{};
+	string line;
+	string conversion{};
+
+	while (getline(file_toRead, line) && !done)	//Iterate over each line
+	{
+		++operations;
+
+		thistype = GetLineType(line);
+		if (lasttype == Linetype::OTHER && thistype != Linetype::OTHER) {conversiontype = thistype;} // new section detected
+
+		if (conversiontype == Linetype::MAP) { HandleMapLine(line, thistype, conversiontype); }
+		else { conversion += GetBOBJtoOBJLine(line, thistype, conversiontype); }
+
+		lasttype = thistype;
+		if (operations >= maxLines) { done = true; }
+	}
+
+	// write to file
+	cout << conversion;
+	cout << "->-> File successfully converted to OBJ.\n";
 	cin.get();
 }
-
 bool OpenFileToRead(const string filename, ifstream& file)
 {
 	file.open(filename);
@@ -54,25 +101,68 @@ bool OpenFileToRead(const string filename, ifstream& file)
 	return success;
 }
 
+#pragma region BOBJ to OBJ
 // BOBJ TO OBJ ///////////////////////////////////////////////////////////////////////////////////////////////
-void BOBJ_to_OBJ()
+Linetype GetLineType(const string& line)
 {
-	// get map
+	Linetype linetype{Linetype::OTHER};
+
+	if (line.compare(0, g_mapIndicator.length(), g_mapIndicator) == 0) { linetype = Linetype::MAP; }
+	else if (line.compare(0, g_vertexNormalIndicator.length(), g_vertexNormalIndicator) == 0) { linetype = Linetype::VERTEXNORMAL; }
+	else if (line.compare(0, g_vertexIndicator.length(), g_vertexIndicator) == 0) { linetype = Linetype::VERTEX; }
+	else if (line.compare(0, g_faceIndicator.length(), g_faceIndicator) == 0) { linetype = Linetype::FACE; }
+	else if (line.compare(0, g_commentIndicator.length(), g_commentIndicator) == 0) { linetype = Linetype::COMMENT; }
+
+	return linetype;
+}
+string GetBOBJtoOBJLine(const string& line, Linetype thistype, Linetype conversiontype)
+{
+	string result{};
+
+	if (thistype != Linetype::OTHER) { return result; }
+	else if (conversiontype == Linetype::OTHER) { return result; }
+
+	switch (conversiontype)
+	{
+	case Linetype::VERTEX:
+		result = GetDecompressedVertex();
+		break;
+	case Linetype::VERTEXNORMAL:
+		result = GetDecompressedVertexNormal();
+		break;
+	case Linetype::FACE:
+		result = GetDecompressedFace();
+		break;
+	case Linetype::COMMENT:
+		result = GetDecompressedComment();
+		break;
+	}
+
+	return result;
 }
 
-
-
-// OBJ TO BOBJ ///////////////////////////////////////////////////////////////////////////////////////////////
-void ConvertAndWriteToBOBJ(ifstream& objFile, const int maxLines, ofstream& bObjFile)
+void HandleMapLine(const string& line, Linetype thistype, Linetype conversiontype)
 {
+	if (thistype != Linetype::OTHER) { return; }
+	else if (conversiontype != Linetype::MAP) { return ; }
+
+	cout << "add to map\n";
+}
+
+string GetDecompressedVertex() { string result{}; return result; }
+string GetDecompressedVertexNormal() { string result{}; return result; }
+string GetDecompressedFace() { string result{}; return result; }
+string GetDecompressedComment(){ string result{}; return result; }
+#pragma endregion
+
+
+#pragma region OBJ to BOBJ
+// OBJ TO BOBJ ///////////////////////////////////////////////////////////////////////////////////////////////
+string GetConvertedOBJtoBOBJString(ifstream& objFile, const int maxLines)
+{
+	string result;
 	bool done{};
 	int operations{};
-
-	const string vertexIndicator{ "v" };
-	const string faceIndicator{ "f" };
-	const string vertexNormalIndicator{ "vn" };
-	const string commentIndicator{ "#" };
-	const string emptyIndicator{ " " };
 
 	bool commentsFound{ false }, verticesFound{ false }, vertexNormalsFound{ false }, facesFound{ false };
 
@@ -84,47 +174,37 @@ void ConvertAndWriteToBOBJ(ifstream& objFile, const int maxLines, ofstream& bObj
 		++operations;
 
 		//get converted line we must check vn/vp before v, since their indicators might overlap
-
-		if (line.compare(0, vertexNormalIndicator.length(), vertexNormalIndicator) == 0) // in case of vertex normal
-		{
-			if (!vertexNormalsFound) { introductionline = vertexNormalIndicator + '\n'; vertexNormalsFound = true; }
+		if (line.compare(0, g_vertexNormalIndicator.length(), g_vertexNormalIndicator) == 0) { // in case of vertex normal
+			if (!vertexNormalsFound) { introductionline = g_vertexNormalIndicator + '\n'; vertexNormalsFound = true; }
 			writeLine = introductionline + GetConvertedVertexNormalLine(line);
 		}
 
-		else if (line.compare(0, vertexIndicator.length(), vertexIndicator) == 0) // in case of vertex
-		{
-			if (!verticesFound) { introductionline = vertexIndicator + '\n'; verticesFound = true; }
+		else if (line.compare(0, g_vertexIndicator.length(), g_vertexIndicator) == 0) { // in case of vertex
+			if (!verticesFound) { introductionline = g_vertexIndicator + '\n'; verticesFound = true; }
 			writeLine = introductionline + GetConvertedVertexLine(line);
 		}
 
-		else if (line.compare(0, faceIndicator.length(), faceIndicator) == 0) // in case of face
-		{
-			if (!facesFound) { introductionline = faceIndicator + '\n'; facesFound = true; }
+		else if (line.compare(0, g_faceIndicator.length(), g_faceIndicator) == 0) { // in case of face
+			if (!facesFound) { introductionline = g_faceIndicator + '\n'; facesFound = true; }
 			writeLine = introductionline + GetConvertedFaceLine(line);
 		}
 
-		else if (line.compare(0, commentIndicator.length(), commentIndicator) == 0) // in case of comment
-		{
-			if (!commentsFound) { introductionline = commentIndicator + '\n'; commentsFound = true; }
+		else if (line.compare(0, g_commentIndicator.length(), g_commentIndicator) == 0) { // in case of comment
+			if (!commentsFound) { introductionline = g_commentIndicator + '\n'; commentsFound = true; }
 			writeLine = introductionline + GetConvertedCommentLine(line);
 		}
-		else if (line.compare(0, emptyIndicator.length(), emptyIndicator) == 0) // in case of comment
-		{
-			writeLine = "";
-		}
-		else //copy anything else without conversion
-		{
-			writeLine = line;
-		}
+		else { writeLine = ""; }//copy anything else without conversion
 
 		//write to file
-		bObjFile.write(writeLine.c_str(), writeLine.length());
+		result += writeLine;
 		writeLine = "placeholder\n";
 		introductionline = "";
 
 		//check if need to continue
 		if (operations >= maxLines) { done = true; }
 	}
+
+	return result;
 }
 
 /*VERTEX*/   ////////////////////////////////////////////////////////////
@@ -385,13 +465,16 @@ void WriteMap(ofstream& bObjFile)
 {
 	string line{};
 
-	string mapIndicator{ "map" };
-	line += mapIndicator + '\n';
+	line += g_mapIndicator + '\n';
 
 	for (auto it = g_prefixes_OBJtoBOBJ.begin(); it != g_prefixes_OBJtoBOBJ.end(); ++it) {
-		
-		line += it->second + " " + it->first + '\n';
+
+		line += "*" + it->second + " " + it->first + '\n';
 	}
+
+//line += g_mapIndicator + +"end" + '\n';
 
 	bObjFile.write(line.c_str(), line.length());
 }
+#pragma endregion
+
