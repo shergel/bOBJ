@@ -17,16 +17,17 @@ struct Coordinate
 	string _string_postfix = {};
 	bool isNegative = {};
 };
-
 struct Vertex
 {
 	Coordinate x{}, y{}, z{};
 };
 
 bool OpenFileToRead(const string filename, ifstream& file);
-void ConvertFile(ifstream& objFile, const int maxLines);
-void HandleVertexLine(const string& line);
+void ConvertAndWriteFile(ifstream& objFile, const int maxLines, ofstream& bObjFile);
+string GetConvertedVertexLine(const string& line);
 void HandleFace();
+void HandleVertexNormal();
+void HandleComment();
 void LineStringToVertex(const string& line, Vertex& vertex);
 void VertexStringToCoordinate(Coordinate& coordinate, const string& fullString);
 string CalculateCoordinatePrefix(const string& coordinateString);
@@ -36,12 +37,12 @@ void ConvertVertex(Vertex& vertex);
 void ConvertCoordinate(Coordinate& coordinate);
 void ConvertCoordinatePrefix(Coordinate& coordinate);
 void ConvertCoordinatePostfix(Coordinate& coordinate);
+string GetWithoutZeroesAtEnd(const string& input);
+string GetWithoutFirstInstanceOf(char toRemove, const string& input);
+string GetPostfixAsLetter(const string& input);
+void AddNewPostfixToMap(const string& newPostfixEntry);
+string GetLastCharCapitalized(const string& input, bool capitalized);
+map<string, string> g_commonPostfixes; //map that stores all common vertex postfixes todo: make local?
 
 
-////global variables
-//ofstream g_writeFile("test.mar");
-
-//std::map<std::string, char> g_map;
-//int g_idx{ int('A') }; //make sure this cannot go over a certain nr AND make sure it can be nocap when negative
-//
-//string g_writeLine{};
+//todo : find random line? just copy it, just in case
