@@ -129,9 +129,6 @@
   <ItemGroup>
     <ClCompile Include="bOBJ.cpp" />
   </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="bOBJ.h" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

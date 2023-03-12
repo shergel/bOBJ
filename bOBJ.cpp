@@ -55,18 +55,17 @@ string GetLastCharCapitalized(const string& input, bool capitalized);
 void WriteMap(ofstream& bObjFile);
 
 
-
 const string g_noPostfixIndicator{ "NONE" };
-map<string, string> g_prefixes_OBJtoBOBJ//map that stores all common vertex postfixes
+map<string, string> g_postfixes_OBJtoBOBJ//map that stores all common vertex postfixes
 {
 { g_noPostfixIndicator, "A"}
 };
-map<string, string> g_prefixes_BOBJtoOBJ{};
+map<string, string> g_postfixes_BOBJtoOBJ{};
 
 
 ////////////////////////////////////////////
 //todo make these parameters
-string g_filenameOBJ{ "debugfile.obj" };
+string g_filenameOBJ{ "low poly stanford bunny.obj" };
 string g_filenameBOBJ{ "test.bOBJ" };
 string g_filenameOBJ2{ "test.obj" };
 ///////////////////////////////////////////
@@ -85,11 +84,13 @@ Linetype GetLineType(const string& line);
 string GetBOBJtoOBJLine(const string& line, Linetype thistype, Linetype conversiontype);
 void HandleMapLine(const string& line, Linetype thistype, Linetype conversiontype);
 
-string GetDecompressedVertex();
-string GetDecompressedVertexNormal();
-string GetDecompressedFace();
-string GetDecompressedComment();
+string GetDecompressedVertex(const string& line);
+string GetDecompressedVertexNormal(const string& line);
+string GetDecompressedFace(const string& line);
+string GetDecompressedComment(const string& line);
+string GetBOBJVertexCoordinateToOBJVertexCoordinate(const string& coordinate);
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// header/cpp split
 
 int main() {
 	OBJ_to_BOBJ();
@@ -165,7 +166,7 @@ void BOBJ_to_OBJ()
 		++operations;
 
 		thistype = GetLineType(line);
-		if (lasttype == Linetype::OTHER && thistype != Linetype::OTHER) {conversiontype = thistype;} // new section detected
+		if (lasttype == Linetype::OTHER && thistype != Linetype::OTHER) { conversiontype = thistype; } // new section detected
 
 		if (conversiontype == Linetype::MAP) { HandleMapLine(line, thistype, conversiontype); }
 		else { conversion += GetBOBJtoOBJLine(line, thistype, conversiontype); }
@@ -174,8 +175,12 @@ void BOBJ_to_OBJ()
 		if (operations >= maxLines) { done = true; }
 	}
 
-	// write to file
-	cout << conversion;
+	/*OPEN FILE TO WRITE*/
+	ofstream file_toWrite;
+	file_toWrite.open(g_filenameOBJ2);
+	file_toWrite.write(conversion.c_str(), conversion.length());
+	file_toWrite.close();
+
 	cout << "->-> File successfully converted to OBJ.\n";
 	cin.get();
 }
@@ -194,7 +199,7 @@ bool OpenFileToRead(const string filename, ifstream& file)
 // BOBJ TO OBJ ///////////////////////////////////////////////////////////////////////////////////////////////
 Linetype GetLineType(const string& line)
 {
-	Linetype linetype{Linetype::OTHER};
+	Linetype linetype{ Linetype::OTHER };
 
 	if (line.compare(0, g_mapIndicator.length(), g_mapIndicator) == 0) { linetype = Linetype::MAP; }
 	else if (line.compare(0, g_vertexNormalIndicator.length(), g_vertexNormalIndicator) == 0) { linetype = Linetype::VERTEXNORMAL; }
@@ -214,16 +219,16 @@ string GetBOBJtoOBJLine(const string& line, Linetype thistype, Linetype conversi
 	switch (conversiontype)
 	{
 	case Linetype::VERTEX:
-		result = GetDecompressedVertex();
+		result = GetDecompressedVertex(line);
 		break;
 	case Linetype::VERTEXNORMAL:
-		result = GetDecompressedVertexNormal();
+		result = GetDecompressedVertexNormal(line);
 		break;
 	case Linetype::FACE:
-		result = GetDecompressedFace();
+		result = GetDecompressedFace(line);
 		break;
 	case Linetype::COMMENT:
-		result = GetDecompressedComment();
+		result = GetDecompressedComment(line);
 		break;
 	}
 
@@ -233,15 +238,158 @@ string GetBOBJtoOBJLine(const string& line, Linetype thistype, Linetype conversi
 void HandleMapLine(const string& line, Linetype thistype, Linetype conversiontype)
 {
 	if (thistype != Linetype::OTHER) { return; }
-	else if (conversiontype != Linetype::MAP) { return ; }
+	else if (conversiontype != Linetype::MAP) { return; }
 
-	cout << "add to map\n";
+	/*SEPARATE KEY & VALUE FROM DATA*/
+	istringstream iss(line);
+	vector<string> words;
+	string word;
+	while (iss >> word) { words.push_back(word); }
+
+	/*STORE KEY*/
+	string key = words[0];
+	key = key.substr(1);
+
+	/*STORE VALUE*/
+	string value = words[1];
+	if (key == "A") { value = ""; } // the key is A, it indicates there was no postfix to begin with
+
+	/*STORE IN MAP*/
+	g_postfixes_BOBJtoOBJ.insert(std::make_pair(key, value));
 }
+string GetDecompressedVertex(const string& line)
+{
+	string result{ line };
 
-string GetDecompressedVertex() { string result{}; return result; }
-string GetDecompressedVertexNormal() { string result{}; return result; }
-string GetDecompressedFace() { string result{}; return result; }
-string GetDecompressedComment(){ string result{}; return result; }
+	/*PLACE SPACES WHERE NEEDED*/
+	bool isLetter{ false }, wasLetter{ false };
+	string accumulated{};
+	string lineWithSpaces{};
+	for (int i{ 0 }; i < result.size(); ++i) {
+
+		/*check for letter vs number*/
+		if (isalpha(result[i])) { isLetter = true; }
+		else { isLetter = false; }
+
+		if (wasLetter && !isLetter) { lineWithSpaces += " "; };
+		lineWithSpaces += result[i];
+
+		wasLetter = isLetter;
+	}
+
+	/*SPLIT COORDINATES INTO VECTOR*/
+	istringstream iss(lineWithSpaces);
+	vector<string> words;
+	string word;
+	while (iss >> word) { words.push_back(word); }
+
+	/*CONVERT EACH COORDINATE TO OBJ STYLE*/
+	for (string& word : words)
+	{
+		word = GetBOBJVertexCoordinateToOBJVertexCoordinate(word);
+	}
+
+	result = g_vertexIndicator + " " + words[0] + " " + words[1] + " " + words[2] + '\n';
+
+	return result;
+}
+string GetDecompressedVertexNormal(const string& line)
+{
+	string result{};
+
+	/*SPLIT LINE INTO VECTOR*/
+	istringstream iss(line);
+	vector<string> words;
+	string word;
+	while (iss >> word) { words.push_back(word); }
+
+	bool isNegative{};
+	const int desiredCharCount{ 8 }; // in the OBJ, vn values were always 8 characters long
+	for (string& word : words)
+	{
+		// check if dot, if so -> must become negative
+		if (word[1] == '.') { isNegative = true; }
+		else { isNegative = false; }
+
+		// add dot to numbers lacking it
+		if (!isNegative) { word.insert(1, "."); }
+
+		// elongate word to the desired length (by adding 0s)
+		while (word.length() < desiredCharCount)
+		{
+			word += "0";
+		}
+
+		// add '-' to negative numbers
+		if (isNegative) { word.insert(0, "-"); }
+	}
+
+	/*RETURN NEW LINE*/
+	result += g_vertexNormalIndicator + " " + words[0] + " " + words[1] + " " + words[2] + '\n';
+	return result;
+}
+string GetDecompressedFace(const string& line)
+{
+	string result{};
+
+	result += g_faceIndicator + " " + line + '\n';
+
+	return result;
+}
+string GetDecompressedComment(const string& line)
+{
+	string result{line};
+
+	string conversion = GetWithoutFirstInstanceOf('*', result);
+	result = g_commentIndicator + " " + conversion + '\n';
+
+	return result;
+}
+string GetBOBJVertexCoordinateToOBJVertexCoordinate(const string& coordinate)
+{
+	string result{ coordinate };
+
+	/*SPLIT into prefix & postfix*/
+	string prefix{}, postfix{};
+	for (char c : result)
+	{
+		if (isdigit(c)) { prefix += c; }
+		else if (isalpha(c)) { postfix += c; }
+	}
+
+	/*CONVERT*/
+	//check if it has to be negative
+	bool isNegative{};
+	if (isupper(postfix.back())) { isNegative = false; }
+	else { isNegative = true; }
+
+	//add '.'
+	prefix.insert(1, ".");
+
+	//lengthen prefix to desired length
+	const int desiredLength{ 9 };
+	while (prefix.length() != desiredLength)
+	{
+		prefix += '0';
+	}
+
+	//apply changes which come with negativity
+	if (isNegative)
+	{
+		prefix.insert(0, "-");
+
+		/*replace last character of the postfix with its capitalized version*/
+		char lastLetter = postfix.back();
+		postfix.pop_back();
+		postfix += toupper(lastLetter);
+	}
+
+	//convert postfix
+	postfix = g_postfixes_BOBJtoOBJ[postfix];
+
+	result = prefix + postfix;
+	return result;
+}
 #pragma endregion
 
 
@@ -436,11 +584,11 @@ string GetPostfixAsLetter(const string& input)
 {
 	string result{};
 
-	try { result = g_prefixes_OBJtoBOBJ.at(input); }
+	try { result = g_postfixes_OBJtoBOBJ.at(input); }
 	catch (const out_of_range&)
 	{
 		AddNewPostfixToMap(input);
-		result = g_prefixes_OBJtoBOBJ.at(input);
+		result = g_postfixes_OBJtoBOBJ.at(input);
 	}
 
 	return result;
@@ -453,7 +601,7 @@ void AddNewPostfixToMap(const string& newPostfixEntry)
 	char startChar = 'A';
 	char endChar = 'Z';
 
-	int mapSize{ static_cast<int>(g_prefixes_OBJtoBOBJ.size()) };
+	int mapSize{ static_cast<int>(g_postfixes_OBJtoBOBJ.size()) };
 	const int alphabetLength{ endChar - startChar };
 
 	const int alphabetLoops = mapSize / alphabetLength;
@@ -472,7 +620,7 @@ void AddNewPostfixToMap(const string& newPostfixEntry)
 	}
 
 	/*NEW ENTRY IN MAP*/
-	g_prefixes_OBJtoBOBJ.insert(make_pair(newPostfixEntry, result));
+	g_postfixes_OBJtoBOBJ.insert(make_pair(newPostfixEntry, result));
 }
 string GetLastCharCapitalized(const string& input, bool capitalized)
 {
@@ -510,7 +658,7 @@ string GetConvertedCommentLine(const string& line)
 	string result{ line };
 
 	/*CLEAN*/
-	result = result.substr(2) + "\n";
+	result = "*" + result.substr(2) + "\n";
 
 	return result;
 }
@@ -556,12 +704,12 @@ void WriteMap(ofstream& bObjFile)
 
 	line += g_mapIndicator + '\n';
 
-	for (auto it = g_prefixes_OBJtoBOBJ.begin(); it != g_prefixes_OBJtoBOBJ.end(); ++it) {
+	for (auto it = g_postfixes_OBJtoBOBJ.begin(); it != g_postfixes_OBJtoBOBJ.end(); ++it) {
 
 		line += "*" + it->second + " " + it->first + '\n';
 	}
 
-//line += g_mapIndicator + +"end" + '\n';
+	//line += g_mapIndicator + +"end" + '\n';
 
 	bObjFile.write(line.c_str(), line.length());
 }
