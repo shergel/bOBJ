@@ -33,7 +33,7 @@ int main() {
 	while (!success)
 	{
 		cout << "\nPlease enter filepath to an .obj or .msobj : ";
-		cin >> filepath;
+		std::getline(cin, filepath);
 
 		success = AccessFilePath(file_toRead, filepath, conversiontype);
 	}
