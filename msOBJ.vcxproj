@@ -21,9 +21,10 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{b6af6f24-f114-40ab-952e-77884cf482ed}</ProjectGuid>
+    <ProjectGuid>{E99FACE1-1C2A-4B63-A3AB-B3D08DEDEC4C}</ProjectGuid>
     <RootNamespace>bOBJ</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>msOBJ</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -127,7 +128,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="bOBJ.cpp" />
+    <ClCompile Include="msOBJ.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="msOBJ.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

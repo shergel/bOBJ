@@ -4,7 +4,7 @@
 #include <vector>
 #include <algorithm>
 #include <map>
-#include "bOBJ.h"
+#include "msOBJ.h"
 
 #ifdef _WIN32
 #define RED_TEXT        "\033[91m"
@@ -22,7 +22,7 @@ using namespace std;
 
 int main() {
 
-	cout << BLUE_TEXT << "[ - - - - - - - OBJ <-> MSOBJ conversion tool by Mariam Shergelashvili 2DAE08 - - - - - - - ] start\n" << RESET_TEXT;
+	cout << BLUE_TEXT << "[ - - - - - - - OBJ <-> MSOBJ conversion tool - - - - - - - ] start\n" << RESET_TEXT;
 
 	ConversionType conversiontype = ConversionType::NONE;
 
@@ -682,7 +682,6 @@ void WriteMap(ofstream& msObjFile)
 	}
 
 	//line += g_mapIndicator + +"end" + '\n';
-
 	msObjFile.write(line.c_str(), line.length());
 }
 #pragma endregion
